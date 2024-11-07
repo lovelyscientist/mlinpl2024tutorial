@@ -8,7 +8,6 @@ $ python train.py --batch_size=32
 
 import math
 import os
-import pickle
 import time
 from contextlib import nullcontext
 
@@ -41,8 +40,8 @@ dropout = 0.2
 bias = False  # do we use bias inside LayerNorm and Linear layers?
 # adamw optimizer
 learning_rate = 1e-3  # with baby networks can afford to go a bit higher
-max_iters = 5000
-lr_decay_iters = 5000  # make equal to max_iters usually
+max_iters = 2000
+lr_decay_iters = 2000  # make equal to max_iters usually
 min_lr = 1e-4  # learning_rate / 10 usually
 weight_decay = 1e-1
 beta1 = 0.9
@@ -283,6 +282,7 @@ while True:
         # scale up to undo the division above, approximating the true total loss (exact would have been a sum)
         lossf = loss.item() * gradient_accumulation_steps
         print(f"iter {iter_num}: loss {lossf:.4f}, time {dt*1000:.2f}ms")
+        tb_writer.add_scalar("train/instant_loss", lossf, iter_num)
     iter_num += 1
     local_iter_num += 1
 
