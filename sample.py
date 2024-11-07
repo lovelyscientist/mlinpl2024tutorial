@@ -64,11 +64,14 @@ model.to(device)
 # older checkpoints might not have these...
 meta_path = os.path.join("data", checkpoint["config"]["dataset"], "meta.pkl")
 print(f"Loading meta from {meta_path}...")
-with open(meta_path, "rb") as f:
-    meta = pickle.load(f)
-stoi, itos = meta["stoi"], meta["itos"]
-encode = lambda s: [stoi[c] for c in s]
-decode = lambda l: "".join([itos[i] for i in l])
+
+
+def encode(s):
+    return torch.frombuffer(s.encode(), dtype=torch.uint8).to(torch.int64)
+
+
+def decode(l):
+    return bytes(l.to(torch.uint8)).decode(errors="backslashreplace")
 
 
 # encode the beginning of the prompt
@@ -83,5 +86,5 @@ with torch.no_grad():
     with ctx:
         for k in range(num_samples):
             y = model.generate(x, max_new_tokens, temperature=temperature, top_k=top_k)
-            print(decode(y[0].tolist()))
+            print(decode(y[0]))
             print("---------------")

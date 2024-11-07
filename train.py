@@ -100,9 +100,9 @@ def get_batch(split):
     # We recreate np.memmap every batch to avoid a memory leak, as per
     # https://stackoverflow.com/questions/45132940/numpy-memmap-memory-usage-want-to-iterate-once/61472122#61472122
     if split == "train":
-        data = np.memmap(os.path.join(data_dir, "train.bin"), dtype=np.uint16, mode="r")
+        data = np.memmap(os.path.join(data_dir, "train.txt"), dtype=np.uint8, mode="r")
     else:
-        data = np.memmap(os.path.join(data_dir, "val.bin"), dtype=np.uint16, mode="r")
+        data = np.memmap(os.path.join(data_dir, "val.txt"), dtype=np.uint8, mode="r")
     ix = torch.randint(len(data) - block_size, (batch_size,))
     x = torch.stack(
         [torch.from_numpy((data[i : i + block_size]).astype(np.int64)) for i in ix]
@@ -127,26 +127,17 @@ def get_batch(split):
 iter_num = 0
 best_val_loss = 1e9
 
-# attempt to derive vocab_size from the dataset
-meta_path = os.path.join(data_dir, "meta.pkl")
-with open(meta_path, "rb") as f:
-    meta = pickle.load(f)
-meta_vocab_size = meta["vocab_size"]
-print(f"found vocab_size = {meta_vocab_size} (inside {meta_path})")
-
 # model init
 model_args = dict(
     n_layer=n_layer,
     n_head=n_head,
     n_embd=n_embd,
     bias=bias,
-    vocab_size=None,
     dropout=dropout,
 )  # start with model_args from command line
 if init_from == "scratch":
     # init a new model from scratch
     print("Initializing a new model from scratch")
-    model_args["vocab_size"] = meta_vocab_size
     gptconf = GPTConfig(**model_args)
     model = GPT(gptconf)
 elif init_from == "resume":
@@ -157,7 +148,7 @@ elif init_from == "resume":
     checkpoint_model_args = checkpoint["model_args"]
     # force these config attributes to be equal otherwise we can't even resume training
     # the rest of the attributes (e.g. dropout) can stay as desired from command line
-    for k in ["n_layer", "n_head", "n_embd", "bias", "vocab_size"]:
+    for k in ["n_layer", "n_head", "n_embd", "bias"]:
         model_args[k] = checkpoint_model_args[k]
     # create the model
     gptconf = GPTConfig(**model_args)

@@ -137,9 +137,7 @@ class Block(nn.Module):
 
 @dataclass
 class GPTConfig:
-    vocab_size: int = (
-        50304  # GPT-2 vocab_size of 50257, padded up to nearest multiple of 64 for efficiency
-    )
+    vocab_size: int = 256  # Raw bytes
     n_layer: int = 12
     n_head: int = 12
     n_embd: int = 768
@@ -264,7 +262,7 @@ class GPT(nn.Module):
         block_states = [AttentionState() for _ in self.transformer.h]
         # put the first tokens to get initial state
 
-        logits, block_states = self(idx[:, :-1], block_states=block_states)
+        logits, block_states = self(idx[:, :], block_states=block_states)
         idxs = [idx]
         for _ in range(max_new_tokens):
             logits = logits[:, -1, :] / temperature
@@ -293,7 +291,9 @@ class GPT(nn.Module):
             # the model accesses context:
             # - do a few radient steps with a much longer context. How many are needed to
             #   make it work?
-            # - use grouped query attention (have fewer kv heads that query heads)
+            # - use grouped query attention (have fewer kv heads that query heads),
+            #   as in https://arxiv.org/abs/1911.02150 (tech hint: use the `enable_gqa`
+            #   argument of scaled_dot_product_attention)
             # - use long attention only in a few layers, limit others to small windows
             #   and share attention between neighboring layers
             #   https://research.character.ai/optimizing-inference/
