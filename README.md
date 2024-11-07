@@ -21,7 +21,7 @@ Because the code is so simple, it is very easy to hack to your needs, train new 
 ## install
 
 ```
-pip install torch numpy transformers datasets tiktoken wandb tqdm
+pip install -U torch rotary_embedding_torch torchvision
 ```
 
 Dependencies:
