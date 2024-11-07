@@ -61,10 +61,6 @@ model.load_state_dict(state_dict)
 model.eval()
 model.to(device)
 
-# older checkpoints might not have these...
-meta_path = os.path.join("data", checkpoint["config"]["dataset"], "meta.pkl")
-print(f"Loading meta from {meta_path}...")
-
 
 def encode(s):
     return torch.frombuffer(s.encode(), dtype=torch.uint8).to(torch.int64)
