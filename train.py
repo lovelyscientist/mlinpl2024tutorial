@@ -30,8 +30,7 @@ always_save_checkpoint = False  # if True, always save a checkpoint after each e
 init_from = "scratch"  # 'scratch' or 'resume'
 resume_checkpoint_name = "ckpt"
 # data
-# dataset = "shakespeare_char"
-dataset = "kv"
+dataset = "shakespeare_char"
 masking_char = "_"
 gradient_accumulation_steps = 1
 batch_size = 64
@@ -302,7 +301,7 @@ while True:
             "model": model.state_dict(),
             "optimizer": optimizer.state_dict(),
             "model_args": model_args,
-             "iter_num": iter_num,
+            "iter_num": iter_num,
             "best_val_loss": best_val_loss,
             "config": config,
         }
