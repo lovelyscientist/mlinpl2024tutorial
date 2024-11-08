@@ -28,6 +28,7 @@ log_interval = 10  # don't print too too often
 eval_only = False  # if True, script exits right after the first eval
 always_save_checkpoint = False  # if True, always save a checkpoint after each eval
 init_from = "scratch"  # 'scratch' or 'resume'
+resume_checkpoint_name = "ckpt"
 # data
 # dataset = "shakespeare_char"
 dataset = "kv"
@@ -43,8 +44,8 @@ dropout = 0.2
 bias = False  # do we use bias inside LayerNorm and Linear layers?
 # adamw optimizer
 learning_rate = 1e-3  # with baby networks can afford to go a bit higher
-max_iters = 5000
-lr_decay_iters = 5000  # make equal to max_iters usually
+max_iters = 2000
+lr_decay_iters = 2000  # make equal to max_iters usually
 min_lr = 1e-4  # learning_rate / 10 usually
 weight_decay = 1e-1
 beta1 = 0.9
@@ -152,7 +153,9 @@ if init_from == "scratch":
 elif init_from == "resume":
     print(f"Resuming training from {out_dir}")
     # resume training from a checkpoint.
-    ckpt_path = os.path.join(out_dir, "ckpt.pt")
+    if not resume_checkpoint_name.endswith(".pt"):
+        resume_checkpoint_name += ".pt"
+    ckpt_path = os.path.join(out_dir, resume_checkpoint_name)
     checkpoint = torch.load(ckpt_path, map_location=device)
     checkpoint_model_args = checkpoint["model_args"]
     # force these config attributes to be equal otherwise we can't even resume training
@@ -292,6 +295,20 @@ while True:
         # scale up to undo the division above, approximating the true total loss (exact would have been a sum)
         lossf = loss.item() * gradient_accumulation_steps
         print(f"iter {iter_num}: loss {lossf:.4f}, time {dt*1000:.2f}ms")
+
+        tb_writer.add_scalar("train/instant_loss", lossf, iter_num)
+
+        checkpoint = {
+            "model": model.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "model_args": model_args,
+             "iter_num": iter_num,
+            "best_val_loss": best_val_loss,
+            "config": config,
+        }
+        p = os.path.join(out_dir, "last.pt")
+        torch.save(checkpoint, p + ".tmp")
+        os.rename(p + ".tmp", p)
     iter_num += 1
     local_iter_num += 1
 

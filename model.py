@@ -262,7 +262,7 @@ class GPT(nn.Module):
         block_states = [AttentionState() for _ in self.transformer.h]
         # put the first tokens to get initial state
 
-        logits, block_states = self(idx[:, :], block_states=block_states)
+        logits, block_states = self(idx, block_states=block_states)
         idxs = [idx]
         for _ in range(max_new_tokens):
             logits = logits[:, -1, :] / temperature

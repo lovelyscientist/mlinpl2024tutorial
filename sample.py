@@ -11,6 +11,7 @@ from model import GPT, GPTConfig
 
 # -----------------------------------------------------------------------------
 out_dir = "out"  # ignored if init_from is not 'resume'
+checkpoint_name = "ckpt"
 start = "\n"  # or "<|endoftext|>" or etc. Can also specify a file, use as: "FILE:prompt.txt"
 num_samples = 1  # number of samples to draw
 max_new_tokens = 1000  # number of tokens generated in each sample
@@ -47,7 +48,9 @@ ctx = (
 )
 
 # init from a model saved in a specific directory
-ckpt_path = os.path.join(out_dir, "ckpt.pt")
+if not checkpoint_name.endswith(".pt"):
+    checkpoint_name += ".pt"
+ckpt_path = os.path.join(out_dir, checkpoint_name)
 checkpoint = torch.load(ckpt_path, map_location=device, weights_only=False)
 gptconf = GPTConfig(**checkpoint["model_args"])
 model = GPT(gptconf)
@@ -60,10 +63,6 @@ model.load_state_dict(state_dict)
 
 model.eval()
 model.to(device)
-
-# older checkpoints might not have these...
-meta_path = os.path.join("data", checkpoint["config"]["dataset"], "meta.pkl")
-print(f"Loading meta from {meta_path}...")
 
 
 def encode(s):
