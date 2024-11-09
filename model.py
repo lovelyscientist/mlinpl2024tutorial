@@ -23,6 +23,10 @@ class AttentionState:
     k_cache: torch.Tensor | None = None
     v_cache: torch.Tensor | None = None
 
+    def size(self):
+        """Returns the size in bits"""
+        return sum(t.numel() * t.element_size() for t in [self.k_cache, self.v_cache])
+
 
 class LayerNorm(nn.Module):
     """LayerNorm but with an optional bias. PyTorch doesn't support simply bias=False"""
@@ -86,6 +90,16 @@ class CausalSelfAttention(nn.Module):
         #  [1, 1, 1, 0],
         #  [1, 1, 1, 1]]
         attn_mask = causal_lower_right(q.size(2), k.size(2))
+
+        # manual multi-head attention, useful for extracting attention scores
+        #
+        # attn_scores = torch.einsum("nhqd,nhkd->nqkh", [q, k])
+        # attn_scores /= (q.size(-1) ** 0.5)
+        # mask = attn_mask._materialize(torch.cuda.current_device())[None, :, :, None]
+        # attn_scores = attn_scores.masked_fill(~mask, float("-inf"))
+        # attn_scores = torch.softmax(attn_scores, dim=2)
+        # y = torch.einsum("nqkh,nhkd->nqhd", [attn_scores, v]).reshape(B, T, C)
+
         y = torch.nn.functional.scaled_dot_product_attention(
             q,
             k,
@@ -264,6 +278,7 @@ class GPT(nn.Module):
 
         logits, block_states = self(idx, block_states=block_states)
         idxs = [idx]
+
         for _ in range(max_new_tokens):
             logits = logits[:, -1, :] / temperature
             # optionally crop the logits to only the top k options
@@ -277,30 +292,37 @@ class GPT(nn.Module):
             idxs.append(idx_next)
             logits, block_states = self(idx_next, block_states=block_states)
 
-            # Assignment 1:
-            # Limit length of the entries in kv-cache to allow the model to generate
-            # sequences longer than the training block size
+            # Assignment 1
+            # ============
+            # When the sequence length is longer than during training, the model produces
+            # garbled output. This could be fixed by extrapolation of positional embeddings.
+            # We'll take a different approach. Limit length of the entries in KV cache
+            # to allow the model generate sequences longer than the training block size.
 
-            # Assignment 2:
-            # Implement as many tricks as you can think of to reduce the size of
-            # block_states.
-            # Some ideas include:
-            # - quantize the k&v tensors
+            # Assignment 2
+            # ============
+            # Implement as many tricks as you can think of to reduce the size of block_states.
+            # Do not try to optimize the latency at all cost. Tip: pay attention to the offset
+            # when applying rotary embeddings when the KV cache has been modified.
+            #
+            # Training-free ideas include:
+            # - Quantizing the KV cache tensors to 8 bits. Which 8-bit format would you use?
+            #   What it would take to go lower than 8 bits?
+            # - Evicting (removing) unused tokens based on their cumulative attention scores
+            #   (tech hint: the code for extracting attn scores is commented out)
             #
             # Retrain / do a few gradient steps from a saved checkpoint to change how
-            # the model accesses context:
-            # - do a few radient steps with a much longer context. How many are needed to
+            # the model accesses its context:
+            # - Do a few gradient steps with a much longer context. How many are needed to
             #   make it work?
-            # - use grouped query attention (have fewer kv heads that query heads),
+            # - Use grouped query attention (have fewer KV heads that query heads)
             #   as in https://arxiv.org/abs/1911.02150 (tech hint: use the `enable_gqa`
             #   argument of scaled_dot_product_attention)
-            # - use long attention only in a few layers, limit others to small windows
+            # - Use long attention only in a few layers, limit others to small windows
             #   and share attention between neighboring layers
             #   https://research.character.ai/optimizing-inference/
-            # - experiment with selectively pruning the kv-cache, e.g. based on cumulative
-            #   attention weights given to a kv0cache location
 
-            # how low, in terms of kv-size in bits can you go (theoretically, you can
+            # How low, in terms of KV size in bits can you go (theoretically, you can
             # use masking and aligned data structures to make implementation easier)
 
         return torch.cat(idxs, dim=1)
