@@ -7,14 +7,12 @@
   <img src="https://pl-bolts-doc-images.s3.us-east-2.amazonaws.com/app-2/studio-badge.svg" alt="Open in Studio" />
 </a>
 
+## Quick Start
 
-## install
-
-```
+First, install the dependencies
+```sh
 pip install -U torch rotary_embedding_torch numpy
 ```
-
-## quick start
 
 To prepare the dataset, run
 ```sh
@@ -56,8 +54,13 @@ Sampling by default uses `ckpt.pt`, you can change it by passing `--checkpoint_n
 
 You can resume training a model instead of creating a new one by passing `--init_from=resume` to `train.py`.
 By default it will load the `ckpt.pt` checkpoint, you can change it by using `--resume_checkpoint_name=...`
+```sh
+python train.py config/train_shakespeare_char.py --out_dir=out-shakespeare-char --init_from=resume --resume_checkpoint_name=ckpt.pt
+```
 
-## sampling / inference
+Finally, to only calculate the validation loss, resume training passing additionally `--max_iters=0 --eval_interval=1`.
+
+## Sampling / Inference
 
 Use the script `sample.py` to sample from a model you trained yourself. Use the `--out_dir` to point the code appropriately. You can also prompt the model with some text from a file, e.g. ```python sample.py --start=FILE:prompt.txt```. You can pass `--checkpoint_name=last.pt` to use the latest checkpoint instead of the best one.
 
