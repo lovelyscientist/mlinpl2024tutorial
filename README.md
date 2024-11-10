@@ -11,7 +11,7 @@
 
 First, install the dependencies
 ```sh
-pip install -U torch rotary_embedding_torch numpy
+pip install -U torch rotary_embedding_torch 'numpy<2'
 ```
 
 To prepare the dataset, run
