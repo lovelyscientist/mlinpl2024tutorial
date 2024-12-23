@@ -57,6 +57,9 @@ class CausalSelfAttention(nn.Module):
         self.n_head = config.n_head
         self.n_embd = config.n_embd
         self.dropout = config.dropout
+        self.block_size = config.block_size
+
+
 
     def forward(self, x, state: AttentionState | None = None):
         B, T, C = (
@@ -75,10 +78,33 @@ class CausalSelfAttention(nn.Module):
             1, 2
         )  # (B, nh, T, hs)
 
+        # Applying per-tensor affine quantization scheme for both k and v cache
+        # S = (maxX - minX) / (int8_max - int8_min)
+        # Z = round(-minX / S)
+        # X_q = round(X / S) + Z
+        # X = S * (X_q - Z)
+
+        int8_max, int8_min  = 127, -128
+        S_func = lambda t: torch.divide(torch.subtract(torch.max(t, dim=3, keepdim=True).values, torch.min(t, dim=3, keepdim=True).values), (int8_max - int8_min))
+        Z_func = lambda t: torch.round(torch.divide(-torch.min(t, dim=3, keepdim=True).values, S_func(t)))
+
+        # compute scale and zero point per token 
+        S_k, Z_k = S_func(k), Z_func(k)
+        S_v, Z_v = S_func(v), Z_func(v)
+
         if state is not None and state.k_cache is not None:
-            k = torch.concat((state.k_cache, k), dim=2)
-            v = torch.concat((state.v_cache, v), dim=2)
-        state = AttentionState(k_cache=k.detach(), v_cache=v.detach())
+            # dequantize stored kv cache and append new kv
+            k = torch.concat((torch.multiply(S_k, torch.subtract(state.k_cache, Z_k)).bfloat16(), k), dim=2)
+            v = torch.concat((torch.multiply(S_v, torch.subtract(state.v_cache, Z_v)).bfloat16(), v), dim=2)
+        
+        # quantize and store new kv cache
+        state = AttentionState(k_cache=torch.add(torch.round(torch.divide(k.to(torch.float16), S_k)), Z_k).detach(), v_cache=torch.add(torch.round(torch.divide(v.to(torch.float16), S_v)), Z_v).detach())
+
+        # limit length of the entries in KV cache
+        if k.size(2) > self.block_size:
+          state.k_cache = state.k_cache[:,:,k.size(2)-self.block_size:k.size(2),:]
+          state.v_cache=state.v_cache[:,:,k.size(2)-self.block_size:k.size(2),:]
+  
 
         q, k = self.rotary_emb.rotate_queries_with_cached_keys(q, k)
 
@@ -99,6 +125,8 @@ class CausalSelfAttention(nn.Module):
         # attn_scores = attn_scores.masked_fill(~mask, float("-inf"))
         # attn_scores = torch.softmax(attn_scores, dim=2)
         # y = torch.einsum("nqkh,nhkd->nqhd", [attn_scores, v]).reshape(B, T, C)
+
+        # print(attn_scores.size())
 
         y = torch.nn.functional.scaled_dot_product_attention(
             q,
@@ -159,6 +187,7 @@ class GPTConfig:
     bias: bool = (
         True  # True: bias in Linears and LayerNorms, like GPT-2. False: a bit better and faster
     )
+    block_size: int = 256
 
 
 class GPT(nn.Module):
